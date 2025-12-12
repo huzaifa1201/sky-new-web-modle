@@ -15,8 +15,8 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
     setImgError(false);
   }, [conditionCode, isDay]);
   
-  // Using Tarikul-Islam-Anik/Animated-Fluent-Emojis for stable, high-quality 3D-style images
-  const BASE_URL = "https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis";
+  // Using jsDelivr CDN instead of raw.githubusercontent for faster caching and loading speeds
+  const BASE_URL = "https://cdn.jsdelivr.net/gh/Tarikul-Islam-Anik/Animated-Fluent-Emojis@master/Emojis";
   
   let assetPath = "";
   let fallbackEmoji = "🌤️";

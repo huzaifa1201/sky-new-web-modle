@@ -40,18 +40,18 @@ const App = () => {
           navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
             await loadWeatherData(latitude, longitude);
-            // Artificial delay for splash animation
-            setTimeout(() => setScreen(AppScreen.HOME), 3500); 
+            // Reduced delay for faster UI loading (from 3500 to 1500)
+            setTimeout(() => setScreen(AppScreen.HOME), 1500); 
           }, (err) => {
             console.error("Geo error", err);
             // Default location: London
             loadWeatherData(51.5074, -0.1278).then(() => {
-               setTimeout(() => setScreen(AppScreen.HOME), 3500);
+               setTimeout(() => setScreen(AppScreen.HOME), 1500);
             });
           });
         } else {
              loadWeatherData(51.5074, -0.1278).then(() => {
-               setTimeout(() => setScreen(AppScreen.HOME), 3500);
+               setTimeout(() => setScreen(AppScreen.HOME), 1500);
             });
         }
       } catch (e) {
