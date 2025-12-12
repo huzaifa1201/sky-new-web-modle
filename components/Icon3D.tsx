@@ -27,7 +27,6 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
   } 
   // Rain (5xx)
   else if (conditionCode >= 500 && conditionCode < 600) {
-    // 511 is freezing rain -> Snow/Rain mix? using Rain for safety
     assetPath = "Natural/Cloud with Rain.png";
     fallbackEmoji = "🌧️";
   } 
@@ -38,7 +37,7 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
   } 
   // Atmosphere (7xx - Fog, Mist)
   else if (conditionCode >= 700 && conditionCode < 800) {
-    assetPath = "Natural/Fog.png"; // Fallback to cloud if fog doesn't exist in set, but Fog exists
+    assetPath = "Natural/Fog.png"; 
     fallbackEmoji = "🌫️";
   } 
   // Clear (800)
@@ -49,10 +48,8 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
   // Clouds (80x)
   else if (conditionCode > 800) {
     if (conditionCode === 801 || conditionCode === 802) {
-         // Partly cloudy
          assetPath = isDay ? "Natural/Sun Behind Cloud.png" : "Natural/Cloud.png";
     } else {
-         // Overcast
          assetPath = "Natural/Cloud.png";
     }
     fallbackEmoji = "☁️";
@@ -79,7 +76,6 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
             className="w-full h-full object-contain drop-shadow-xl z-10 relative"
             loading="lazy"
             onError={(e) => {
-                // If image fails, hide it and show emoji (though these URLs are stable)
                 (e.target as HTMLImageElement).style.display = 'none';
                 (e.target as HTMLImageElement).parentElement!.innerText = fallbackEmoji;
             }}

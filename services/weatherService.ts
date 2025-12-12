@@ -1,15 +1,12 @@
 import { WeatherData, CitySearchResult, CurrentWeather, HourlyWeather, DailyWeather, WeatherCondition } from '../types';
 
-// Open-Meteo does not require an API key.
-// We map Open-Meteo WMO codes to our app's logic.
-
+// Open-Meteo WMO Code Mapping
 const mapWMOCode = (code: number, isDay: number): WeatherCondition[] => {
   const iconSuffix = isDay ? 'd' : 'n';
   let id = 800;
   let main = 'Clear';
   let description = 'Clear sky';
 
-  // WMO Weather interpretation codes (WW)
   // 0: Clear sky
   if (code === 0) { 
       id = 800; 
@@ -50,11 +47,11 @@ export const fetchWeather = async (lat: number, lon: number, units: string = 'me
     const windUnit = units === 'imperial' ? 'mph' : 'kmh';
     
     // Fetch generic weather data from Open-Meteo
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,visibility,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max&timezone=auto&temperature_unit=${unitParam}&wind_speed_unit=${windUnit}`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max&timezone=auto&temperature_unit=${unitParam}&wind_speed_unit=${windUnit}`;
     
     const response = await fetch(url);
     if (!response.ok) {
-        throw new Error('Weather data fetch failed');
+        throw new Error(`Weather API Error: ${response.statusText}`);
     }
     const data = await response.json();
 
@@ -67,10 +64,10 @@ export const fetchWeather = async (lat: number, lon: number, units: string = 'me
       feels_like: data.current.apparent_temperature,
       pressure: data.current.pressure_msl,
       humidity: data.current.relative_humidity_2m,
-      dew_point: data.current.temperature_2m - ((100 - data.current.relative_humidity_2m) / 5), // rough estimate
+      dew_point: data.current.temperature_2m - ((100 - data.current.relative_humidity_2m) / 5),
       uvi: data.hourly.uv_index[0] || 0,
       clouds: data.current.cloud_cover,
-      visibility: 10000, // Open-Meteo provides generic visibility code, simplifying for UI
+      visibility: 10000,
       wind_speed: data.current.wind_speed_10m,
       wind_deg: data.current.wind_direction_10m,
       weather: mapWMOCode(data.current.weather_code, data.current.is_day)
@@ -78,18 +75,15 @@ export const fetchWeather = async (lat: number, lon: number, units: string = 'me
 
     // Map Hourly Weather
     const hourly: HourlyWeather[] = data.hourly.time.map((t: string, i: number) => {
-        // Determine isDay based on sunrise/sunset of the day (simplified)
         const dt = new Date(t).getTime() / 1000;
-        const sunrise = new Date(data.daily.sunrise[0]).getTime() / 1000;
-        const sunset = new Date(data.daily.sunset[0]).getTime() / 1000;
-        // Simple check for day/night icon logic
         const hour = new Date(t).getHours();
+        // Fallback isDay logic if not provided in hourly
         const isDay = hour > 6 && hour < 20 ? 1 : 0; 
 
         return {
             dt: dt,
             temp: data.hourly.temperature_2m[i],
-            feels_like: data.hourly.temperature_2m[i], // not provided in basic hourly, using temp
+            feels_like: data.hourly.temperature_2m[i],
             pressure: 1013,
             humidity: 80, 
             dew_point: 10,
@@ -174,7 +168,6 @@ export const searchCity = async (query: string): Promise<CitySearchResult[]> => 
 
 export const reverseGeocode = async (lat: number, lon: number): Promise<string> => {
     try {
-        // Using Nominatim (OpenStreetMap) for free reverse geocoding
         const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
         const data = await response.json();
         

@@ -41,7 +41,7 @@ const App = () => {
             const { latitude, longitude } = position.coords;
             await loadWeatherData(latitude, longitude);
             // Artificial delay for splash animation
-            setTimeout(() => setScreen(AppScreen.HOME), 3500); // Increased splash time slightly to enjoy the logo
+            setTimeout(() => setScreen(AppScreen.HOME), 3500); 
           }, (err) => {
             console.error("Geo error", err);
             // Default location: London
@@ -75,7 +75,7 @@ const App = () => {
       setLocationName(location);
     } catch (error) {
       console.error(error);
-      setErrorMsg("Unable to fetch weather data. Please check your connection or API limit.");
+      setErrorMsg("Unable to fetch weather data. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -115,11 +115,13 @@ const App = () => {
 
   const handleUseMyLocation = () => {
     if (navigator.geolocation) {
+      setLoading(true);
       navigator.geolocation.getCurrentPosition(async (position) => {
         const { latitude, longitude } = position.coords;
         await loadWeatherData(latitude, longitude);
       }, (err) => {
         console.error("Geo error", err);
+        setLoading(false);
         alert("Unable to retrieve location. Please check your permissions.");
       });
     } else {
