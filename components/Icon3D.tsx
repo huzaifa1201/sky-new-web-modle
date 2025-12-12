@@ -1,16 +1,4 @@
-import React, { useState, useEffect } from 'react';
-
-// TypeScript declaration for the custom web component properties
-interface ModelViewerProps extends React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> {
-  src?: string;
-  poster?: string;
-  alt?: string;
-  'auto-rotate'?: boolean;
-  'camera-controls'?: boolean;
-  'disable-zoom'?: boolean;
-  'shadow-intensity'?: string;
-  exposure?: string;
-}
+import React from 'react';
 
 interface Icon3DProps {
   conditionCode: number;
@@ -20,69 +8,59 @@ interface Icon3DProps {
 }
 
 const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, className = "" }) => {
-  const [hasError, setHasError] = useState(false);
-
-  // Reset error state if props change (e.g. scrolling in list)
-  useEffect(() => {
-    setHasError(false);
-  }, [conditionCode, isDay]);
-
-  // Microsoft Fluent 3D Assets Base URL
-  const BASE_URL = "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets";
   
-  // Asset Logic
+  // Using Tarikul-Islam-Anik/Animated-Fluent-Emojis for stable, high-quality 3D-style images
+  const BASE_URL = "https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis";
+  
   let assetPath = "";
   let fallbackEmoji = "🌤️";
 
   // Thunderstorm (2xx)
   if (conditionCode >= 200 && conditionCode < 300) {
-    // Matches the "SkyNow" logo style (Cloud + Lightning + Rain)
-    assetPath = "Cloud%20with%20lightning%20and%20rain/3D/cloud_with_lightning_and_rain_3d";
+    assetPath = "Natural/Cloud with Lightning and Rain.png";
     fallbackEmoji = "⛈";
   } 
-  // Drizzle/Rain (3xx, 5xx)
-  else if (conditionCode >= 300 && conditionCode < 600) {
-    assetPath = "Cloud%20with%20rain/3D/cloud_with_rain_3d";
+  // Drizzle (3xx)
+  else if (conditionCode >= 300 && conditionCode < 400) {
+    assetPath = "Natural/Cloud with Rain.png";
+    fallbackEmoji = "🌧️";
+  } 
+  // Rain (5xx)
+  else if (conditionCode >= 500 && conditionCode < 600) {
+    // 511 is freezing rain -> Snow/Rain mix? using Rain for safety
+    assetPath = "Natural/Cloud with Rain.png";
     fallbackEmoji = "🌧️";
   } 
   // Snow (6xx)
   else if (conditionCode >= 600 && conditionCode < 700) {
-    assetPath = "Snowflake/3D/snowflake_3d";
+    assetPath = "Natural/Snowflake.png";
     fallbackEmoji = "❄️";
   } 
-  // Atmosphere / Cloud
-  else if ((conditionCode >= 700 && conditionCode < 800) || conditionCode > 800) {
-    // "Cloud" is generally safe
-    assetPath = "Cloud/3D/cloud_3d";
-    fallbackEmoji = "☁️";
+  // Atmosphere (7xx - Fog, Mist)
+  else if (conditionCode >= 700 && conditionCode < 800) {
+    assetPath = "Natural/Fog.png"; // Fallback to cloud if fog doesn't exist in set, but Fog exists
+    fallbackEmoji = "🌫️";
   } 
   // Clear (800)
-  else {
-    // "Sun" and "Full moon" are the most standard assets.
-    assetPath = isDay ? "Sun/3D/sun_3d" : "Full%20moon/3D/full_moon_3d";
+  else if (conditionCode === 800) {
+    assetPath = isDay ? "Natural/Sun.png" : "Natural/Full Moon.png";
     fallbackEmoji = isDay ? "☀️" : "🌕";
+  } 
+  // Clouds (80x)
+  else if (conditionCode > 800) {
+    if (conditionCode === 801 || conditionCode === 802) {
+         // Partly cloudy
+         assetPath = isDay ? "Natural/Sun Behind Cloud.png" : "Natural/Cloud.png";
+    } else {
+         // Overcast
+         assetPath = "Natural/Cloud.png";
+    }
+    fallbackEmoji = "☁️";
+  } else {
+    assetPath = isDay ? "Natural/Sun.png" : "Natural/Full Moon.png";
   }
 
-  const modelUrl = `${BASE_URL}/${assetPath}.glb`;
-  const imageUrl = `${BASE_URL}/${assetPath}.png`;
-
-  // Performance Optimization: Only use 3D model for large sizes
-  const use3DModel = size > 100;
-
-  // Render Fallback Emoji if image failed
-  if (hasError) {
-    return (
-      <div 
-        className={`flex items-center justify-center ${className}`}
-        style={{ width: size, height: size, fontSize: size * 0.8 }}
-      >
-        {fallbackEmoji}
-      </div>
-    );
-  }
-
-  // Use type casting for the custom element
-  const ModelViewer = 'model-viewer' as unknown as React.ElementType<ModelViewerProps>;
+  const imageUrl = `${BASE_URL}/${assetPath}`;
 
   return (
     <div 
@@ -91,32 +69,21 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
     >
         {/* Glow effect background */}
         <div 
-            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] rounded-full blur-2xl opacity-40 bg-white"
+            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] rounded-full blur-xl opacity-40 bg-white"
             style={{ zIndex: 0 }}
         ></div>
 
-        {use3DModel ? (
-            <ModelViewer
-                src={modelUrl}
-                poster={imageUrl}
-                alt="Weather Icon"
-                auto-rotate
-                disable-zoom
-                camera-controls={false}
-                shadow-intensity="1"
-                exposure="1.2"
-                style={{ width: '100%', height: '100%', zIndex: 10 }}
-            >
-            </ModelViewer>
-        ) : (
-            <img 
-                src={imageUrl} 
-                alt="Weather Icon" 
-                className="w-full h-full object-contain drop-shadow-lg z-10 relative"
-                loading="lazy"
-                onError={() => setHasError(true)}
-            />
-        )}
+        <img 
+            src={imageUrl} 
+            alt={fallbackEmoji}
+            className="w-full h-full object-contain drop-shadow-xl z-10 relative"
+            loading="lazy"
+            onError={(e) => {
+                // If image fails, hide it and show emoji (though these URLs are stable)
+                (e.target as HTMLImageElement).style.display = 'none';
+                (e.target as HTMLImageElement).parentElement!.innerText = fallbackEmoji;
+            }}
+        />
     </div>
   );
 };

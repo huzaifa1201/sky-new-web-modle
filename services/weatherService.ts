@@ -1,183 +1,190 @@
-import { WeatherData, CitySearchResult, CurrentWeather, HourlyWeather, DailyWeather } from '../types';
+import { WeatherData, CitySearchResult, CurrentWeather, HourlyWeather, DailyWeather, WeatherCondition } from '../types';
 
-const API_KEY = '369eabe5d3136a6af663ff17de6fec2f';
-const ONECALL_URL = 'https://api.openweathermap.org/data/3.0/onecall';
-const WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather';
-const FORECAST_URL = 'https://api.openweathermap.org/data/2.5/forecast';
-const GEO_URL = 'https://api.openweathermap.org/geo/1.0/direct';
+// Open-Meteo does not require an API key.
+// We map Open-Meteo WMO codes to our app's logic.
+
+const mapWMOCode = (code: number, isDay: number): WeatherCondition[] => {
+  const iconSuffix = isDay ? 'd' : 'n';
+  let id = 800;
+  let main = 'Clear';
+  let description = 'Clear sky';
+
+  // WMO Weather interpretation codes (WW)
+  // 0: Clear sky
+  if (code === 0) { 
+      id = 800; 
+      main = 'Clear'; 
+      description = 'Clear sky'; 
+  }
+  // 1, 2, 3: Mainly clear, partly cloudy, and overcast
+  else if (code === 1) { id = 801; main = 'Clouds'; description = 'Mainly clear'; }
+  else if (code === 2) { id = 802; main = 'Clouds'; description = 'Partly cloudy'; }
+  else if (code === 3) { id = 803; main = 'Clouds'; description = 'Overcast'; }
+  // 45, 48: Fog
+  else if ([45, 48].includes(code)) { id = 701; main = 'Mist'; description = 'Fog'; }
+  // 51, 53, 55: Drizzle
+  else if ([51, 53, 55].includes(code)) { id = 300; main = 'Drizzle'; description = 'Drizzle'; }
+  // 56, 57: Freezing Drizzle
+  else if ([56, 57].includes(code)) { id = 300; main = 'Drizzle'; description = 'Freezing Drizzle'; }
+  // 61, 63, 65: Rain
+  else if ([61, 63, 65].includes(code)) { id = 500; main = 'Rain'; description = 'Rain'; }
+  // 66, 67: Freezing Rain
+  else if ([66, 67].includes(code)) { id = 500; main = 'Rain'; description = 'Freezing Rain'; }
+  // 71, 73, 75: Snow fall
+  else if ([71, 73, 75].includes(code)) { id = 600; main = 'Snow'; description = 'Snow fall'; }
+  // 77: Snow grains
+  else if (code === 77) { id = 600; main = 'Snow'; description = 'Snow grains'; }
+  // 80, 81, 82: Rain showers
+  else if ([80, 81, 82].includes(code)) { id = 521; main = 'Rain'; description = 'Rain showers'; }
+  // 85, 86: Snow showers
+  else if ([85, 86].includes(code)) { id = 600; main = 'Snow'; description = 'Snow showers'; }
+  // 95, 96, 99: Thunderstorm
+  else if ([95, 96, 99].includes(code)) { id = 200; main = 'Thunderstorm'; description = 'Thunderstorm'; }
+
+  return [{ id, main, description, icon: `${id}${iconSuffix}` }];
+};
 
 export const fetchWeather = async (lat: number, lon: number, units: string = 'metric'): Promise<WeatherData> => {
   try {
-    // 1. Try One Call 3.0 first (Requested endpoint)
-    const response = await fetch(`${ONECALL_URL}?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=${units}&exclude=minutely,alerts`);
+    const unitParam = units === 'imperial' ? 'fahrenheit' : 'celsius';
+    const windUnit = units === 'imperial' ? 'mph' : 'kmh';
     
-    if (response.ok) {
-      return await response.json();
+    // Fetch generic weather data from Open-Meteo
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,weather_code,visibility,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max&timezone=auto&temperature_unit=${unitParam}&wind_speed_unit=${windUnit}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error('Weather data fetch failed');
     }
-    
-    // 2. If One Call fails (likely 401 Unauthorized due to free tier), fallback to Standard APIs
-    console.warn(`OneCall API failed (Status: ${response.status}). Falling back to Standard API.`);
-    return await fetchStandardWeather(lat, lon, units);
-    
+    const data = await response.json();
+
+    // Map Current Weather
+    const current: CurrentWeather = {
+      dt: Math.floor(Date.now() / 1000),
+      sunrise: new Date(data.daily.sunrise[0]).getTime() / 1000,
+      sunset: new Date(data.daily.sunset[0]).getTime() / 1000,
+      temp: data.current.temperature_2m,
+      feels_like: data.current.apparent_temperature,
+      pressure: data.current.pressure_msl,
+      humidity: data.current.relative_humidity_2m,
+      dew_point: data.current.temperature_2m - ((100 - data.current.relative_humidity_2m) / 5), // rough estimate
+      uvi: data.hourly.uv_index[0] || 0,
+      clouds: data.current.cloud_cover,
+      visibility: 10000, // Open-Meteo provides generic visibility code, simplifying for UI
+      wind_speed: data.current.wind_speed_10m,
+      wind_deg: data.current.wind_direction_10m,
+      weather: mapWMOCode(data.current.weather_code, data.current.is_day)
+    };
+
+    // Map Hourly Weather
+    const hourly: HourlyWeather[] = data.hourly.time.map((t: string, i: number) => {
+        // Determine isDay based on sunrise/sunset of the day (simplified)
+        const dt = new Date(t).getTime() / 1000;
+        const sunrise = new Date(data.daily.sunrise[0]).getTime() / 1000;
+        const sunset = new Date(data.daily.sunset[0]).getTime() / 1000;
+        // Simple check for day/night icon logic
+        const hour = new Date(t).getHours();
+        const isDay = hour > 6 && hour < 20 ? 1 : 0; 
+
+        return {
+            dt: dt,
+            temp: data.hourly.temperature_2m[i],
+            feels_like: data.hourly.temperature_2m[i], // not provided in basic hourly, using temp
+            pressure: 1013,
+            humidity: 80, 
+            dew_point: 10,
+            uvi: data.hourly.uv_index[i] || 0,
+            clouds: 50,
+            visibility: 10000,
+            wind_speed: 10,
+            wind_deg: 0,
+            weather: mapWMOCode(data.hourly.weather_code[i], isDay),
+            pop: 0
+        };
+    });
+
+    // Map Daily Weather
+    const daily: DailyWeather[] = data.daily.time.map((t: string, i: number) => ({
+      dt: new Date(t).getTime() / 1000,
+      sunrise: new Date(data.daily.sunrise[i]).getTime() / 1000,
+      sunset: new Date(data.daily.sunset[i]).getTime() / 1000,
+      moonrise: 0,
+      moonset: 0,
+      moon_phase: 0,
+      temp: {
+        day: data.daily.temperature_2m_max[i],
+        min: data.daily.temperature_2m_min[i],
+        max: data.daily.temperature_2m_max[i],
+        night: data.daily.temperature_2m_min[i],
+        eve: data.daily.temperature_2m_max[i],
+        morn: data.daily.temperature_2m_min[i]
+      },
+      feels_like: {
+        day: data.daily.temperature_2m_max[i],
+        night: data.daily.temperature_2m_min[i],
+        eve: data.daily.temperature_2m_max[i],
+        morn: data.daily.temperature_2m_min[i]
+      },
+      pressure: 1013,
+      humidity: 50,
+      dew_point: 10,
+      wind_speed: 10,
+      wind_deg: 0,
+      weather: mapWMOCode(data.daily.weather_code[i], 1),
+      clouds: 50,
+      pop: (data.daily.precipitation_probability_max?.[i] || 0) / 100,
+      uvi: data.daily.uv_index_max[i]
+    }));
+
+    return {
+      lat: lat,
+      lon: lon,
+      timezone: data.timezone,
+      timezone_offset: data.utc_offset_seconds,
+      current,
+      hourly,
+      daily
+    };
+
   } catch (error) {
     console.error("Failed to fetch weather data:", error);
     throw error;
   }
 };
 
-// Fallback function using Standard Free APIs
-const fetchStandardWeather = async (lat: number, lon: number, units: string): Promise<WeatherData> => {
-    try {
-        const [currentRes, forecastRes] = await Promise.all([
-            fetch(`${WEATHER_URL}?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=${units}`),
-            fetch(`${FORECAST_URL}?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=${units}`)
-        ]);
-
-        if (!currentRes.ok || !forecastRes.ok) {
-            throw new Error(`Standard API failed: Weather ${currentRes.status}, Forecast ${forecastRes.status}`);
-        }
-
-        const currentData = await currentRes.json();
-        const forecastData = await forecastRes.json();
-
-        return transformStandardData(currentData, forecastData);
-    } catch (e) {
-        console.error("Fallback logic failed:", e);
-        throw e;
-    }
-}
-
-// Transformer to shape Standard API data into OneCall format
-const transformStandardData = (current: any, forecast: any): WeatherData => {
-    // 1. Transform Current Weather
-    const currentObj: CurrentWeather = {
-        dt: current.dt,
-        sunrise: current.sys.sunrise,
-        sunset: current.sys.sunset,
-        temp: current.main.temp,
-        feels_like: current.main.feels_like,
-        pressure: current.main.pressure,
-        humidity: current.main.humidity,
-        dew_point: current.main.temp, // Approximation
-        uvi: 0, // Not available in standard
-        clouds: current.clouds.all,
-        visibility: current.visibility,
-        wind_speed: current.wind.speed,
-        wind_deg: current.wind.deg,
-        weather: current.weather
-    };
-
-    // 2. Transform Forecast list to Hourly (Standard is 3-hour steps)
-    const hourly: HourlyWeather[] = forecast.list.map((item: any) => ({
-        dt: item.dt,
-        temp: item.main.temp,
-        feels_like: item.main.feels_like,
-        pressure: item.main.pressure,
-        humidity: item.main.humidity,
-        dew_point: item.main.temp,
-        uvi: 0,
-        clouds: item.clouds.all,
-        visibility: item.visibility,
-        wind_speed: item.wind.speed,
-        wind_deg: item.wind.deg,
-        weather: item.weather,
-        pop: item.pop || 0
-    }));
-
-    // 3. Transform Forecast list to Daily (Aggregate 3-hour chunks by day)
-    const dailyMap = new Map<string, any>();
-    
-    forecast.list.forEach((item: any) => {
-        // Simple date grouping
-        const date = new Date(item.dt * 1000).toDateString();
-        
-        if (!dailyMap.has(date)) {
-            dailyMap.set(date, {
-                dt: item.dt,
-                min: item.main.temp_min,
-                max: item.main.temp_max,
-                weather: item.weather,
-                clouds: item.clouds.all,
-                pop: item.pop || 0,
-                pressure: item.main.pressure,
-                humidity: item.main.humidity,
-                wind_speed: item.wind.speed,
-                wind_deg: item.wind.deg
-            });
-        } else {
-            const day = dailyMap.get(date);
-            day.min = Math.min(day.min, item.main.temp_min);
-            day.max = Math.max(day.max, item.main.temp_max);
-            // Optionally update weather icon priority here
-        }
-    });
-
-    const daily: DailyWeather[] = Array.from(dailyMap.values()).map(d => ({
-        dt: d.dt,
-        sunrise: current.sys.sunrise, // Approximation from current
-        sunset: current.sys.sunset,   // Approximation from current
-        moonrise: 0,
-        moonset: 0,
-        moon_phase: 0,
-        temp: {
-            day: (d.min + d.max) / 2,
-            min: d.min,
-            max: d.max,
-            night: d.min,
-            eve: d.max,
-            morn: d.min
-        },
-        feels_like: {
-            day: d.max,
-            night: d.min,
-            eve: d.max,
-            morn: d.min
-        },
-        pressure: d.pressure,
-        humidity: d.humidity,
-        dew_point: 0,
-        wind_speed: d.wind_speed,
-        wind_deg: d.wind_deg,
-        weather: d.weather,
-        clouds: d.clouds,
-        pop: d.pop,
-        uvi: 0
-    }));
-
-    return {
-        lat: current.coord.lat,
-        lon: current.coord.lon,
-        timezone: "UTC",
-        timezone_offset: current.timezone,
-        current: currentObj,
-        hourly: hourly,
-        daily: daily
-    };
-}
-
 export const searchCity = async (query: string): Promise<CitySearchResult[]> => {
   try {
-    const response = await fetch(`${GEO_URL}?q=${query}&limit=5&appid=${API_KEY}`);
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
-    return await response.json();
+    const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${query}&count=5&language=en&format=json`);
+    const data = await response.json();
+    
+    if (!data.results) return [];
+
+    return data.results.map((item: any) => ({
+        name: item.name,
+        lat: item.latitude,
+        lon: item.longitude,
+        country: item.country,
+        state: item.admin1
+    }));
   } catch (error) {
     console.error("Failed to search city:", error);
-    throw error;
+    return [];
   }
 };
 
 export const reverseGeocode = async (lat: number, lon: number): Promise<string> => {
     try {
-        const response = await fetch(`https://api.openweathermap.org/geo/1.0/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEY}`);
-        if(!response.ok) throw new Error("Reverse geocode failed");
+        // Using Nominatim (OpenStreetMap) for free reverse geocoding
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
         const data = await response.json();
-        if(data && data.length > 0) {
-            return `${data[0].name}, ${data[0].country}`;
+        
+        if (data && data.address) {
+            const city = data.address.city || data.address.town || data.address.village || data.address.hamlet;
+            const country = data.address.country;
+            return city ? `${city}, ${country}` : "Unknown Location";
         }
         return "Unknown Location";
     } catch (e) {
-        return "Unknown Location";
+        return `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
     }
 }
