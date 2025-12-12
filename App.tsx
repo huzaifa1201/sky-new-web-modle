@@ -357,7 +357,8 @@ const App = () => {
             </div>
             
             <div className="text-center mt-[-20px]">
-                <h1 className={`text-8xl font-bold tracking-tighter drop-shadow-lg ${darkMode ? 'text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60' : 'text-slate-800'}`}>
+                {/* Responsive Font Size for Mobile */}
+                <h1 className={`text-6xl md:text-8xl font-bold tracking-tighter drop-shadow-lg ${darkMode ? 'text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60' : 'text-slate-800'}`}>
                     {Math.round(weather.current.temp)}°
                 </h1>
                 <p className={`text-xl font-medium capitalize mt-2 py-1 px-4 rounded-full inline-block backdrop-blur-md border ${darkMode ? 'text-blue-200 bg-white/10 border-white/10' : 'text-blue-700 bg-white/50 border-white/30'}`}>
@@ -371,7 +372,7 @@ const App = () => {
           </div>
 
           {/* Content Scrollable Area */}
-          <div className="w-full z-10 space-y-2">
+          <div className="w-full z-10 space-y-2 pb-6">
              {/* Detail Grid */}
              <DetailGrid data={weather.current} darkMode={darkMode} />
 

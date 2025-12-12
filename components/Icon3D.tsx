@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Icon3DProps {
   conditionCode: number;
@@ -8,6 +8,12 @@ interface Icon3DProps {
 }
 
 const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, className = "" }) => {
+  const [imgError, setImgError] = useState(false);
+
+  // Reset error state when condition changes, giving the new image a chance to load
+  useEffect(() => {
+    setImgError(false);
+  }, [conditionCode, isDay]);
   
   // Using Tarikul-Islam-Anik/Animated-Fluent-Emojis for stable, high-quality 3D-style images
   const BASE_URL = "https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis";
@@ -70,16 +76,24 @@ const Icon3D: React.FC<Icon3DProps> = ({ conditionCode, isDay, size = 64, classN
             style={{ zIndex: 0 }}
         ></div>
 
-        <img 
-            src={imageUrl} 
-            alt={fallbackEmoji}
-            className="w-full h-full object-contain drop-shadow-xl z-10 relative"
-            loading="lazy"
-            onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                (e.target as HTMLImageElement).parentElement!.innerText = fallbackEmoji;
-            }}
-        />
+        {!imgError ? (
+            <img 
+                src={imageUrl} 
+                alt={fallbackEmoji}
+                className="w-full h-full object-contain drop-shadow-xl z-10 relative"
+                loading="lazy"
+                onError={() => setImgError(true)}
+            />
+        ) : (
+            <span 
+                className="z-10 relative select-none"
+                style={{ fontSize: size * 0.6, lineHeight: 1 }}
+                role="img"
+                aria-label={fallbackEmoji}
+            >
+                {fallbackEmoji}
+            </span>
+        )}
     </div>
   );
 };
