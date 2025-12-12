@@ -1,0 +1,7 @@
+{
+  "name": "SkyNow",
+  "description": "A modern, glass-morphism weather application featuring live data, animated interfaces, and 3D-style visuals.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
